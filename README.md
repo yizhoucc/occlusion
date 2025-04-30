@@ -1,5 +1,14 @@
 # Occlusion: Mouse Navigation with Noisy Information Accumulation - A Reinforcement Learning Approach
 
+## Instruction and files
+
+1. Run the `generate information background.ipynb` notebook to generate the information maps.  
+   These maps will be saved as `new info matrix hres.npy` files.
+
+2. Run the `aperture rl ab.ipynb` notebook to train the agent.
+
+
+
 ## Problem Description
 
 This problem models a mouse navigating through a 2D arena (`nx` columns, `ny` rows) to find the correct reward port based on **noisy, spatially-dependent information**. The mouse starts at position (`nx`//2, 0) (bottom center) and must navigate to one of two potential reward ports located at opposite sides of the top row: (`0`, `ny`-1) (left port) or (`nx`-1, `ny`-1) (right port). At the start of each episode, one port is randomly designated as correct (50% chance each), but the agent doesn't know which.
