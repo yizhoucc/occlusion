@@ -1,0 +1,97 @@
+
+\subsection{The Occlusion Task Environment}
+\label{ssec:methods_aperture_environment}
+The Occlusion Task environment was designed to model perceptual decision-making and active information gathering. In this task, an agent must choose between a left or right target port based on sensory information perceived through a central aperture. The critical manipulation is the size of this aperture, which directly controls the rate of information acquisition about the correct target.
+
+\subsection{Modeling Perceptual Decision-Making and Information Gathering}
+\label{ssec:methods_aperture_task_agent_modeling}
+For the Aperture Task, computational modeling focused on how an agent learns to balance evidence accumulation, decision speed, and accuracy. Approaches considered included:
+\begin{itemize}
+    \item \textbf{Dynamic Programming (DP):} Theoretical optimal policies were explored using value iteration, assuming a known task model, to calculate the value of states defined by accumulated evidence and elapsed time.
+    \item \textbf{Model-Based Reinforcement Learning:} Agents were developed assuming knowledge of the task's information structure (e.g., how aperture size affects evidence rate). Policies were learned through simulated experience, optimizing for rewards while considering action costs (e.g., time, effort) and the value of information-gathering actions.
+\end{itemize}
+These models aimed to capture adaptive strategies, such as longer evidence accumulation periods for smaller apertures (slower information gain) and quicker decisions for larger apertures (faster information gain, see Figures for conceptual agent behavior). The relationship to normative models like Diffusion Decision Models (DDMs) was considered, where an RL agent's policy could modulate DDM parameters.
+
+\subsubsection*{Problem Description}
+This problem models a mouse navigating through a 2D arena (\texttt{nx} columns, \texttt{ny} rows) to find the correct reward port based on \textbf{noisy, spatially-dependent information}. The mouse starts at position \texttt{(nx // 2, 0)} (bottom center) and must navigate to one of two potential reward ports located at opposite sides of the top row: \texttt{(0, ny - 1)} (left port) or \texttt{(nx - 1, ny - 1)} (right port). At the start of each episode, one port is randomly designated as correct (50\% chance each), but the agent does not know which.
+
+The central challenge is for the agent to \textbf{learn a policy} that efficiently gathers information to infer the correct port while minimizing movement costs. Information gain depends on the mouse's position \texttt{(x, y)} according to a predefined \texttt{info\_matrix}, but this information is corrupted by \textbf{observation noise}, making the inference process uncertain.
+
+\subsubsection*{Reinforcement Learning Environment (\texttt{MouseNavigationEnv})}
+
+The problem is formulated as a reinforcement learning task using a custom \texttt{gymnasium} (or \texttt{gym}) environment.
+
+\paragraph*{Observation Space}
+
+The agent receives a 5-dimensional observation vector at each timestep:
+
+\begin{enumerate}
+    \item \texttt{x\_norm}: Normalized x-position, $[0, 1]$.
+    \item \texttt{y\_norm}: Normalized y-position, $[0, 1]$.
+    \item \texttt{vx\_norm}: Normalized x-velocity, $[-1, 1]$.
+    \item \texttt{vy\_norm}: Normalized y-velocity, $[-1, 1]$.
+    \item \texttt{belief\_state}: A value in $[-1, 1]$ representing the current belief about the correct port, derived from the internal \texttt{cumulative\_info}.
+\end{enumerate}
+
+\paragraph*{Action Space}
+
+The agent chooses discrete accelerations:
+\begin{itemize}
+    \item \texttt{[ax\_choice, ay\_choice]}, where each value is an integer from 0 to 6.
+    \item These map to accelerations in $\{-3, -2, -1, 0, 1, 2, 3\}$ along each axis.
+\end{itemize}
+
+\paragraph*{Constraints}
+\begin{itemize}
+    \item \textbf{Maximum velocity:} The agent's speed is capped at \texttt{max\_v}.
+    \item \textbf{Arena boundaries:} The mouse cannot leave the $[0, nx)\times[0, ny)$ arena.
+    \item \textbf{Port approach:} Vertical velocity is forced to 0 when entering the top row.
+    \item \textbf{Maximum steps:} Each episode ends after \texttt{max\_steps}.
+\end{itemize}
+
+\paragraph*{Movement Costs, Information Gain, and Rewards}
+
+\begin{itemize}
+    \item \textbf{Step costs:}
+    \begin{itemize}
+        \item Velocity cost: $\sqrt{vx^2 + vy^2} \cdot \texttt{vcost}$
+        \item Acceleration cost: $\sqrt{ax^2 + ay^2} \cdot \texttt{wcost}$
+        \item Time cost: constant \texttt{timecost} per step
+    \end{itemize}
+
+    \item \textbf{Information gain:}
+    \begin{itemize}
+        \item Depends on previous position in \texttt{info\_matrix}, scaled by \texttt{info\_scale}
+        \item Corrupted by noise: $ \max(0, \frac{\texttt{raw\_info}}{\texttt{max\_info}} - \mathcal{U}(0, \texttt{noise})) $
+        \item Added to \texttt{cumulative\_info} (positive if left is correct, negative if right)
+    \end{itemize}
+
+    \item \textbf{Terminal rewards/penalties:}
+    \begin{itemize}
+        \item \textbf{Correct port:} $+\texttt{success\_prob} \cdot \texttt{reward\_magnitude}$
+        \item \textbf{Incorrect port:} $-\texttt{success\_prob} \cdot 5 \cdot \texttt{reward\_magnitude}$
+        \item \textbf{Stopping early:} $-0.5 \cdot \texttt{reward\_magnitude}$
+        \item \textbf{Timeout:} $-0.25 \cdot \texttt{reward\_magnitude}$
+    \end{itemize}
+\end{itemize}
+
+\paragraph*{Key Parameters}
+\begin{itemize}
+    \item \texttt{noise}, \texttt{info\_matrix}, \texttt{info\_scale}
+    \item \texttt{vcost}, \texttt{wcost}, \texttt{timecost}
+    \item \texttt{max\_v}, \texttt{max\_steps}, \texttt{reward\_magnitude}
+\end{itemize}
+
+\subsubsection*{Reinforcement Learning Goal}
+
+The objective is to train a reinforcement learning agent (e.g., using Proximal Policy Optimization, PPO) to learn a policy $\pi(\texttt{action} \mid \texttt{observation})$ that maximizes the expected cumulative discounted reward.
+
+The agent must:
+\begin{itemize}
+    \item Learn when and where to gather information
+    \item Balance the cost of movement with the value of information
+    \item Form a belief from noisy observations
+    \item Choose a port based on its belief
+\end{itemize}
+
+Performance is measured by success rate (choosing the correct port) and cumulative reward.
